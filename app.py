@@ -48,18 +48,18 @@ def get_search_query_from_image(image_bytes):
 def scrape_ebay_listings(search_query):
     # Safely encode spaces and special characters (fixes BLD0001)
     query_formatted = urllib.parse.quote_plus(search_query) 
-    sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1&LH_PrefLoc=1"
+    sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1&LH_PrefLoc=0"
     
     try:
         # Initialize ZenRows Client
         client = ZenRowsClient(ZENROWS_API_KEY)
         
-        # Updated parameters to fix RESP001
+        # Updated parameters to fix RESP001 and increased wait time for JS rendering
         params = {
             "premium_proxy": "true",
             "antibot": "true",
             "js_render": "true",  
-            "wait": 2000 
+            "wait": 5000 # Increased from 2000 to ensure page loads completely
         }
         
         # Fetch data through ZenRows
@@ -73,8 +73,10 @@ def scrape_ebay_listings(search_query):
         soup = BeautifulSoup(response.text, 'html.parser')
         items = soup.find_all('li', class_='s-item')
         data_points = []
+        
         for item in items:
-            if "s-item__pl-on-bottom" in item.get('class', []): continue
+            # REMOVED: if "s-item__pl-on-bottom" in item.get('class', []): continue
+            
             title = item.find('div', class_='s-item__title')
             price = item.find('span', class_='s-item__price')
             link = item.find('a', class_='s-item__link')
@@ -82,15 +84,14 @@ def scrape_ebay_listings(search_query):
             if title and price and link:
                 price_text = price.text.replace(',', '')
                 if "to" not in price_text and "$" in price_text:
-                    # Updated regex to catch both $85 and $85.00
+                    # UPDATED: Regex now makes the decimal part optional to catch whole numbers
                     match = re.search(r'\d+(?:\.\d+)?', price_text)
                     if match:
-                    # Use float() to handle the extracted string safely
                         data_points.append({
-                             "Keep": True, 
+                            "Keep": True, 
                             "Title": title.text, 
                             "Price": float(match.group()), 
-                             "Link": link['href']
+                            "Link": link['href']
                         })
         
         return data_points[:15]
@@ -154,8 +155,8 @@ if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True)
         st.warning("⚠️ Please snap a photo and enter the store price before clicking Go.")
 
 # 4. RENDER DATA & CALCULATE (Reads from memory so checkboxes work)
-if st.session_state.raw_data is not None: # Changed this line!
-    if len(st.session_state.raw_data) > 0: # Check if we actually got results
+if st.session_state.raw_data is not None:
+    if len(st.session_state.raw_data) > 0: 
         st.success(f"Identified: **{st.session_state.search_query}**")
         st.subheader("🔍 Verify Market Data")
         
