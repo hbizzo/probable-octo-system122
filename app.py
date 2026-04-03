@@ -82,9 +82,16 @@ def scrape_ebay_listings(search_query):
             if title and price and link:
                 price_text = price.text.replace(',', '')
                 if "to" not in price_text and "$" in price_text:
-                    match = re.search(r'\d+\.\d+', price_text)
-                    if match:
-                        data_points.append({"Keep": True, "Title": title.text, "Price": float(match.group()), "Link": link['href']})
+                    # Updated regex to catch both $85 and $85.00
+match = re.search(r'\d+(?:\.\d+)?', price_text)
+if match:
+    # Use float() to handle the extracted string safely
+    data_points.append({
+        "Keep": True, 
+        "Title": title.text, 
+        "Price": float(match.group()), 
+        "Link": link['href']
+    })
         
         return data_points[:15]
         
