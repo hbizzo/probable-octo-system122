@@ -52,12 +52,13 @@ def scrape_ebay_listings(search_query):
         
         # Simplify these parameters to match your working test script
         params = {
-            'url': url,
-            'apikey': apikey,
-        	'premium_proxy': 'true',
-            # REMOVE js_render and wait
+        'url': url,
+        'apikey': apikey,
+        'premium_proxy': 'true', 
+        'proxy_country': 'au',    
+        'antibot': 'true'         
         }
-        
+            
         response = client.get(sold_url, params=params)
         
         response = client.get(sold_url, params=params)
