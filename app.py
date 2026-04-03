@@ -49,14 +49,13 @@ def scrape_ebay_listings(search_query):
     try:
         client = ZenRowsClient(ZENROWS_API_KEY)
         
-        # Simplify these parameters to match your working test script
         params = {
             "premium_proxy": "true",
             "proxy_country": "au",
             "antibot": "true",
         }
         
-        # Executing a single API request to ZenRows
+        # Single API request to ZenRows
         response = client.get(sold_url, params=params)
         
         if response.status_code != 200:
@@ -64,41 +63,16 @@ def scrape_ebay_listings(search_query):
             return []
             
         soup = BeautifulSoup(response.text, 'html.parser')
-        items = soup.select('.s-item')
+        
+        # Select items using either the old or new eBay class structure
+        items = soup.select('.s-item, .s-card')
         data_points = []
         
         for item in items:
-            title = item.select_one('.s-item__title')
-            price = item.select_one('.s-item__price')
-            link = item.select_one('.s-item__link')
-            
-            if title and price and link:
-                price_text = price.text.replace(',', '')
-                if "to" not in price_text.lower() and "$" in price_text:
-                    # Robust regex handles whole numbers and decimals
-                    match = re.search(r'\d+(?:\.\d+)?', price_text)
-                    if match:
-                        data_points.append({
-                            "Keep": True, 
-                            "Title": title.text.replace("New Listing", "").strip(), 
-                            "Price": float(match.group()), 
-                            "Link": link['href']
-                        })
-        
-        return [d for d in data_points if "shop on ebay" not in d['Title'].lower()][:15]
-        
-    except Exception as e:
-        st.error(f"Scraping Error: {e}")
-        return []
-            
-        soup = BeautifulSoup(response.text, 'html.parser')
-        items = soup.select('.s-item')
-        data_points = []
-        
-        for item in items:
-            title = item.select_one('.s-item__title')
-            price = item.select_one('.s-item__price')
-            link = item.select_one('.s-item__link')
+            # Check for both class naming conventions
+            title = item.select_one('.s-item__title, .s-card__title')
+            price = item.select_one('.s-item__price, .s-card__price')
+            link = item.select_one('.s-item__link, .s-card__link')
             
             if title and price and link:
                 price_text = price.text.replace(',', '')
