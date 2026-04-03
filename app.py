@@ -59,6 +59,7 @@ def scrape_ebay_listings(search_query):
             "premium_proxy": "true",
             "antibot": "true",
             "js_render": "true"
+            "wait" : 2000
         }
         
         # Fetch data through ZenRows
