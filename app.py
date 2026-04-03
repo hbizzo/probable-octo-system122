@@ -51,11 +51,20 @@ def scrape_ebay_listings(search_query):
         # Initialize ZenRows Client
         client = ZenRowsClient(ZENROWS_API_KEY)
         
-        # Use premium proxies to bypass eBay's security
-        params = {"premium_proxy": "true"}
+        # Use premium proxies and JS rendering to bypass eBay's security
+        params = {
+            "premium_proxy": "true",
+            "js_render": "true",
+            "wait_for": ".s-item" # Tells ZenRows to wait until the items load
+        }
         
         # Fetch data through ZenRows
         response = client.get(sold_url, params=params)
+        
+        # Add a debug check to see if ZenRows is failing
+        if response.status_code != 200:
+            st.error(f"ZenRows Error: {response.status_code} - {response.text}")
+            return []
         
         soup = BeautifulSoup(response.text, 'html.parser')
         items = soup.find_all('li', class_='s-item')
@@ -131,50 +140,53 @@ if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True)
         st.warning("⚠️ Please snap a photo and enter the store price before clicking Go.")
 
 # 4. RENDER DATA & CALCULATE (Reads from memory so checkboxes work)
-if st.session_state.raw_data:
-    st.success(f"Identified: **{st.session_state.search_query}**")
-    st.subheader("🔍 Verify Market Data")
-    
-    df = pd.DataFrame(st.session_state.raw_data)
-    edited_df = st.data_editor(
-        df, 
-        column_config={
-            "Keep": st.column_config.CheckboxColumn(default=True), 
-            "Link": st.column_config.LinkColumn("View"), 
-            "Price": st.column_config.NumberColumn(format="$%.2f")
-        }, 
-        disabled=["Title", "Price", "Link"], 
-        hide_index=True, 
-        use_container_width=True
-    )
-
-    verified_points = edited_df[edited_df["Keep"]]
-    
-    if not verified_points.empty:
-        avg_val = verified_points["Price"].mean()
-        profit = (avg_val * 0.85) - store_price - st.session_state.shipping_cost
+if st.session_state.raw_data is not None: # Changed this line!
+    if len(st.session_state.raw_data) > 0: # Check if we actually got results
+        st.success(f"Identified: **{st.session_state.search_query}**")
+        st.subheader("🔍 Verify Market Data")
         
-        st.divider()
-        c1, c2 = st.columns(2)
-        c1.metric("Market Value", f"${avg_val:.2f}")
-        c2.metric("Arbitrage Value", f"${profit:.2f}", delta=f"{profit:.2f}")
-
-        # --- SAVE TO HISTORY BUTTON ---
-        if st.button("💾 Save to History"):
-            st.session_state.history.append({
-                "Item": st.session_state.search_query,
-                "Sticker Price": store_price,
-                "Market Value": round(avg_val, 2),
-                "Shipping": round(st.session_state.shipping_cost, 2),
-                "Profit": round(profit, 2)
-            })
-            st.toast(f"Saved {st.session_state.search_query} to history!")
+        df = pd.DataFrame(st.session_state.raw_data)
+        edited_df = st.data_editor(
+            df, 
+            column_config={
+                "Keep": st.column_config.CheckboxColumn(default=True), 
+                "Link": st.column_config.LinkColumn("View"), 
+                "Price": st.column_config.NumberColumn(format="$%.2f")
+            }, 
+            disabled=["Title", "Price", "Link"], 
+            hide_index=True, 
+            use_container_width=True
+        )
+    
+        verified_points = edited_df[edited_df["Keep"]]
+        
+        if not verified_points.empty:
+            avg_val = verified_points["Price"].mean()
+            profit = (avg_val * 0.85) - store_price - st.session_state.shipping_cost
             
-            # Optional: Clear the active search after saving so you can scan the next item cleanly
-            st.session_state.raw_data = None
-            st.rerun()
+            st.divider()
+            c1, c2 = st.columns(2)
+            c1.metric("Market Value", f"${avg_val:.2f}")
+            c2.metric("Arbitrage Value", f"${profit:.2f}", delta=f"{profit:.2f}")
+    
+            # --- SAVE TO HISTORY BUTTON ---
+            if st.button("💾 Save to History"):
+                st.session_state.history.append({
+                    "Item": st.session_state.search_query,
+                    "Sticker Price": store_price,
+                    "Market Value": round(avg_val, 2),
+                    "Shipping": round(st.session_state.shipping_cost, 2),
+                    "Profit": round(profit, 2)
+                })
+                st.toast(f"Saved {st.session_state.search_query} to history!")
+                
+                st.session_state.raw_data = None
+                st.rerun()
+        else:
+            st.warning("Please keep at least one listing.")
     else:
-        st.warning("Please keep at least one listing.")
+        # What to show if the list is empty
+        st.warning(f"Identified as **{st.session_state.search_query}**, but no sold listings were found on eBay. Try searching manually or tweaking the image angle.")
 
 # --- 5. HISTORY SECTION ---
 st.divider()
