@@ -46,28 +46,29 @@ def get_search_query_from_image(image_bytes):
         return None
 
 def scrape_ebay_listings(search_query):
-    # This safely encodes spaces, quotes, and special characters
-    query_formatted = urllib.parse.quote_plus(search_query)
+    # Safely encode spaces and special characters (fixes BLD0001)
+    query_formatted = urllib.parse.quote_plus(search_query) 
     sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1&LH_PrefLoc=0"
+    
     try:
         # Initialize ZenRows Client
         client = ZenRowsClient(ZENROWS_API_KEY)
         
-        # Use premium proxies and JS rendering to bypass eBay's security
+        # Updated parameters to fix RESP001
         params = {
             "premium_proxy": "true",
-            "js_render": "true",
-            "wait_for": ".s-item" # Tells ZenRows to wait until the items load
+            "antibot": "true",
+            "js_render": "true"
         }
         
         # Fetch data through ZenRows
         response = client.get(sold_url, params=params)
         
-        # Add a debug check to see if ZenRows is failing
+        # Catch ZenRows errors explicitly
         if response.status_code != 200:
             st.error(f"ZenRows Error: {response.status_code} - {response.text}")
             return []
-        
+            
         soup = BeautifulSoup(response.text, 'html.parser')
         items = soup.find_all('li', class_='s-item')
         data_points = []
@@ -76,17 +77,20 @@ def scrape_ebay_listings(search_query):
             title = item.find('div', class_='s-item__title')
             price = item.find('span', class_='s-item__price')
             link = item.find('a', class_='s-item__link')
+            
             if title and price and link:
                 price_text = price.text.replace(',', '')
                 if "to" not in price_text and "$" in price_text:
                     match = re.search(r'\d+\.\d+', price_text)
                     if match:
                         data_points.append({"Keep": True, "Title": title.text, "Price": float(match.group()), "Link": link['href']})
+        
         return data_points[:15]
+        
     except Exception as e:
         st.error(f"Scraping Error: {e}")
         return []
-
+        
 # --- STREAMLIT UI ---
 st.set_page_config(page_title="Arbitrage Scanner", layout="centered")
 st.title("📸 Arbitrage Scanner")
