@@ -6,8 +6,6 @@ import re
 import time
 
 # --- CONFIGURATION ---
-# IMPORTANT: Remove hardcoded API keys. 
-# Use Streamlit's secrets management: .streamlit/secrets.toml
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 except KeyError:
@@ -93,7 +91,6 @@ def analyze_market(search_query):
             title_text = title_elem.text.lower()
             
             # RELEVANCE FILTER: Ensure at least 50% of our search terms are in the listing title
-            # This fixes the "suggested item" bug
             match_score = sum(1 for word in query_words if word in title_text)
             if match_score / len(query_words) < 0.5:
                 continue
@@ -111,17 +108,36 @@ def analyze_market(search_query):
 # --- STREAMLIT UI ---
 st.set_page_config(page_title="Arbitrage Scanner", layout="centered")
 
-st.title("📸 Arbitrage Scanner")
-st.write("Snap a photo to instantly check market liquidity and margins.")
+st.title("📸 Arbitrage Scanner + LiDAR Calc")
+st.write("Snap a photo to check liquidity. Use your iPhone's 'Measure' app for precise shipping costs.")
 
-# 1. Inputs
+# --- SIDEBAR: LiDAR SHIPPING CALCULATOR ---
+with st.sidebar:
+    st.header("📦 Dimensions (LiDAR)")
+    st.info("Input the L, W, H from your iPhone Measure app.")
+    l = st.number_input("Length (cm):", min_value=1.0, value=20.0)
+    w = st.number_input("Width (cm):", min_value=1.0, value=15.0)
+    h = st.number_input("Height (cm):", min_value=1.0, value=10.0)
+    actual_kg = st.number_input("Actual Weight (kg):", min_value=0.1, value=0.5)
+
+# --- CORE SHIPPING LOGIC ---
+cubic_kg = (l * w * h) / 4000
+chargeable_kg = max(actual_kg, cubic_kg)
+
+if chargeable_kg <= 5:
+    volume_cm3 = l * w * h
+    if volume_cm3 <= 2400: final_ship = 11.30
+    elif volume_cm3 <= 7300: final_ship = 15.20
+    elif volume_cm3 <= 16500: final_ship = 19.50
+    else: final_ship = 23.30
+else:
+    final_ship = 15.00 + ((chargeable_kg - 5) * 2.50)
+
+# --- 1. INPUTS ---
 picture = st.camera_input("Scan Item")
+store_price = st.number_input("Sticker Price (AUD):", min_value=0.0, format="%.2f")
 
-col_a, col_b = st.columns(2)
-store_price = col_a.number_input("Sticker Price (AUD):", min_value=0.0, format="%.2f")
-shipping_cost = col_b.number_input("Est. Shipping Cost (AUD):", min_value=0.0, value=10.00, format="%.2f")
-
-# 2. Process the Data
+# --- 2. PROCESS THE DATA ---
 if picture and store_price > 0:
     with st.spinner("AI is analyzing the image..."):
         image_bytes = picture.getvalue()
@@ -129,6 +145,10 @@ if picture and store_price > 0:
         
     if search_query and search_query != "ITEM_NOT_RECOGNIZED":
         st.success(f"Identified: **{search_query}**")
+        
+        # Display shipping stats
+        st.write(f"📏 **Chargeable Weight:** {chargeable_kg:.2f}kg (Actual: {actual_kg}kg, Cubic: {cubic_kg:.2f}kg)")
+        st.write(f"🚚 **Estimated AusPost Shipping:** ${final_ship:.2f}")
         
         with st.spinner("Scraping market data..."):
             active_count, sold_count, valid_prices = analyze_market(search_query)
@@ -140,7 +160,7 @@ if picture and store_price > 0:
             # Financial Logic
             estimated_fees = average_price * 0.15
             net_revenue = average_price - estimated_fees
-            profit = net_revenue - store_price - shipping_cost
+            profit = net_revenue - store_price - final_ship
             roi = (profit / store_price) * 100 if store_price > 0 else 0
             
             # --- DISPLAY THE DASHBOARD ---
@@ -170,7 +190,7 @@ if picture and store_price > 0:
             f_col2.write(f"-${estimated_fees:.2f}")
             
             f_col1.write("Est. Shipping:")
-            f_col2.write(f"-${shipping_cost:.2f}")
+            f_col2.write(f"-${final_ship:.2f}")
 
             f_col1.write("Cost of Goods:")
             f_col2.write(f"-${store_price:.2f}")
