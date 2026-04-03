@@ -171,19 +171,4 @@ if st.session_state.raw_data is not None:
         
         if not verified_points.empty:
             avg_val = verified_points["Price"].mean()
-            profit = (avg_val * 0.85) - store_price -                    # FIX: Regex now handles $85 AND $85.00
-                    match = re.search(r'\d+(?:\.\d+)?', price_text)
-                    if match:
-                        data_points.append({
-                            "Keep": True, 
-                            "Title": title.text.replace("New Listing", "").strip(), 
-                            "Price": float(match.group()), 
-                            "Link": link['href']
-                        })
-        
-        # Filter out the generic 'Shop on eBay' placeholder often found at index 0
-        return [d for d in data_points if "shop on ebay" not in d['Title'].lower()][:15]
-        
-    except Exception as e:
-        st.error(f"Scraping Error: {e}")
-        return []
+            profit = (avg_val * 0.85) - store_price -
