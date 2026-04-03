@@ -7,7 +7,7 @@ import re
 import pandas as pd
 from zenrows import ZenRowsClient
 
-# --- 1. PAGE SETUP (MUST BE FIRST) ---
+# --- 1. PAGE SETUP ---
 st.set_page_config(page_title="Arbitrage Scanner", layout="centered")
 
 # --- 2. CONFIGURATION & SESSION STATE ---
@@ -49,13 +49,15 @@ def scrape_ebay_listings(search_query):
     try:
         client = ZenRowsClient(ZENROWS_API_KEY)
         
+        # Added js_render to ensure the s-card elements are populated
         params = {
             "premium_proxy": "true",
             "proxy_country": "au",
             "antibot": "true",
+            "js_render": "true", 
+            "wait_for": ".s-card, .s-item" # Wait for results to appear
         }
         
-        # Single API request to ZenRows
         response = client.get(sold_url, params=params)
         
         if response.status_code != 200:
@@ -64,30 +66,31 @@ def scrape_ebay_listings(search_query):
             
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Select items using either the old or new eBay class structure
+        # Robust selection for both desktop (s-item) and modern/mobile (s-card) layouts
         items = soup.select('.s-item, .s-card')
         data_points = []
         
         for item in items:
-            # Check for both class naming conventions
-            title = item.select_one('.s-item__title, .s-card__title')
+            # Updated selectors to match the HTML file provided
+            title = item.select_one('.s-item__title, .s-card__title, [role="heading"]')
             price = item.select_one('.s-item__price, .s-card__price')
-            link = item.select_one('.s-item__link, .s-card__link')
+            link = item.select_one('.s-item__link, .s-card__link, a[href*="/itm/"]')
             
             if title and price and link:
-                price_text = price.text.replace(',', '')
+                price_text = price.get_text(strip=True).replace(',', '')
+                # Skip price ranges (e.g., "$10 to $20") to ensure data accuracy
                 if "to" not in price_text.lower() and "$" in price_text:
-                    # Robust regex handles whole numbers and decimals
                     match = re.search(r'\d+(?:\.\d+)?', price_text)
                     if match:
                         data_points.append({
                             "Keep": True, 
                             "Title": title.text.replace("New Listing", "").strip(), 
                             "Price": float(match.group()), 
-                            "Link": link['href']
+                            "Link": link['href'] if link.has_attr('href') else ""
                         })
         
-        return [d for d in data_points if "shop on ebay" not in d['Title'].lower()][:15]
+        # Filter out generic eBay ads and "Shop on eBay" placeholders
+        return [d for d in data_points if "shop on" not in d['Title'].lower()][:15]
         
     except Exception as e:
         st.error(f"Scraping Error: {e}")
@@ -126,19 +129,18 @@ with st.sidebar:
 picture = st.camera_input("Scan Item")
 store_price = st.number_input("Store Price (AUD):", min_value=0.0, value=None, format="%.2f")
 
-# Explicit error handling so you know exactly why the button isn't firing
 if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True):
     if not picture:
-        st.warning("⚠️ Please click 'Take Photo' in the camera widget first.")
+        st.warning("⚠️ Please click 'Take Photo' first.")
     elif store_price is None:
-        st.warning("⚠️ Please type in the Store Price first.")
+        st.warning("⚠️ Please enter the Store Price.")
     else:
-        with st.spinner("AI is looking at the item..."):
+        with st.spinner("AI Identifying item..."):
             query = get_search_query_from_image(picture.getvalue())
             st.session_state.search_query = query
             
         if query and query != "ITEM_NOT_RECOGNIZED":
-            with st.spinner("Fetching eBay sold data..."):
+            with st.spinner(f"Fetching eBay data for: {query}..."):
                 st.session_state.raw_data = scrape_ebay_listings(query)
         else:
             st.session_state.raw_data = None
@@ -146,8 +148,7 @@ if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True)
 
 if st.session_state.raw_data is not None:
     if len(st.session_state.raw_data) > 0: 
-        st.success(f"Identified: **{st.session_state.search_query}**")
-        st.subheader("🔍 Verify Market Data")
+        st.success(f"Market Analysis for: **{st.session_state.search_query}**")
         
         df = pd.DataFrame(st.session_state.raw_data)
         edited_df = st.data_editor(
@@ -166,12 +167,13 @@ if st.session_state.raw_data is not None:
         
         if not verified_points.empty:
             avg_val = verified_points["Price"].mean()
+            # 15% deduction for platform fees/overhead
             profit = (avg_val * 0.85) - store_price - st.session_state.shipping_cost
             
             st.divider()
             c1, c2 = st.columns(2)
-            c1.metric("Market Value", f"${avg_val:.2f}")
-            c2.metric("Arbitrage Value", f"${profit:.2f}", delta=f"{profit:.2f}")
+            c1.metric("Avg Market Value", f"${avg_val:.2f}")
+            c2.metric("Estimated Profit", f"${profit:.2f}", delta=f"{profit:.2f}")
     
             if st.button("💾 Save to History"):
                 st.session_state.history.append({
@@ -181,13 +183,13 @@ if st.session_state.raw_data is not None:
                     "Shipping": round(st.session_state.shipping_cost, 2),
                     "Profit": round(profit, 2)
                 })
-                st.toast(f"Saved {st.session_state.search_query} to history!")
+                st.toast("Saved to history!")
                 st.session_state.raw_data = None
                 st.rerun()
         else:
-            st.warning("Please keep at least one listing.")
+            st.warning("Please select at least one listing to calculate profit.")
     else:
-        st.warning(f"Identified as **{st.session_state.search_query}**, but no sold listings were found on eBay.")
+        st.warning(f"No sold listings found for: **{st.session_state.search_query}**.")
 
 st.divider()
 st.subheader("📜 Sourcing History")
@@ -209,4 +211,4 @@ if st.session_state.history:
         st.session_state.history = []
         st.rerun()
 else:
-    st.info("Your history is empty.")
+    st.info("Your history is currently empty.")
