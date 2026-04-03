@@ -171,4 +171,50 @@ if st.session_state.raw_data is not None:
         
         if not verified_points.empty:
             avg_val = verified_points["Price"].mean()
-            profit = (avg_val * 0.85) - store_price -
+            profit = (avg_val * 0.85) - store_price - st.session_state.shipping_cost
+            
+            st.divider()
+            c1, c2 = st.columns(2)
+            c1.metric("Market Value", f"${avg_val:.2f}")
+            c2.metric("Arbitrage Value", f"${profit:.2f}", delta=f"{profit:.2f}")
+    
+            if st.button("💾 Save to History"):
+                st.session_state.history.append({
+                    "Item": st.session_state.search_query,
+                    "Sticker Price": store_price,
+                    "Market Value": round(avg_val, 2),
+                    "Shipping": round(st.session_state.shipping_cost, 2),
+                    "Profit": round(profit, 2)
+                })
+                st.toast(f"Saved {st.session_state.search_query} to history!")
+                
+                st.session_state.raw_data = None
+                st.rerun()
+        else:
+            st.warning("Please keep at least one listing.")
+    else:
+        st.warning(f"Identified as **{st.session_state.search_query}**, but no sold listings were found on eBay. Try searching manually or tweaking the image angle.")
+
+# --- 5. HISTORY SECTION ---
+st.divider()
+st.subheader("📜 Sourcing History")
+
+if st.session_state.history:
+    history_df = pd.DataFrame(st.session_state.history)
+    st.dataframe(
+        history_df,
+        column_config={
+            "Sticker Price": st.column_config.NumberColumn(format="$%.2f"),
+            "Market Value": st.column_config.NumberColumn(format="$%.2f"),
+            "Shipping": st.column_config.NumberColumn(format="$%.2f"),
+            "Profit": st.column_config.NumberColumn(format="$%.2f")
+        },
+        hide_index=True,
+        use_container_width=True
+    )
+    
+    if st.button("🗑️ Clear History"):
+        st.session_state.history = []
+        st.rerun()
+else:
+    st.info("Your history is empty. Save a calculation to see it here.")
