@@ -1,3 +1,4 @@
+import urllib.parse
 import streamlit as st
 import base64
 import requests
@@ -45,7 +46,8 @@ def get_search_query_from_image(image_bytes):
         return None
 
 def scrape_ebay_listings(search_query):
-    query_formatted = search_query.replace(" ", "+")
+    # This safely encodes spaces, quotes, and special characters
+    query_formatted = urllib.parse.quote_plus(search_query)
     sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1&LH_PrefLoc=0"
     try:
         # Initialize ZenRows Client
