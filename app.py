@@ -59,7 +59,7 @@ def scrape_ebay_listings(search_query):
             "premium_proxy": "true",
             "antibot": "true",
             "js_render": "true"
-            "wait": 2000
+            "wait_for": ".s-item" # Tells ZenRows to wait until the items load
         }
         
         # Fetch data through ZenRows
