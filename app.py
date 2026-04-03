@@ -44,20 +44,21 @@ def get_search_query_from_image(image_bytes):
 
 def scrape_ebay_listings(search_query):
     query_formatted = urllib.parse.quote_plus(search_query) 
-    sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1"
+    # Added LH_PrefLoc=1 to filter for "Australia Only"
+    sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1&LH_PrefLoc=1"
     
     try:
         client = ZenRowsClient(ZENROWS_API_KEY)
         
-        # Added js_render to ensure the s-card elements are populated
         params = {
             "premium_proxy": "true",
-            "proxy_country": "au",
+            "proxy_country": "au", # Ensures the request comes from an AU IP
             "antibot": "true",
             "js_render": "true", 
-            "wait_for": ".s-card, .s-item" # Wait for results to appear
+            "wait_for": ".s-card, .s-item"
         }
         
+        # Single request to ZenRows
         response = client.get(sold_url, params=params)
         
         if response.status_code != 200:
@@ -66,19 +67,18 @@ def scrape_ebay_listings(search_query):
             
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Robust selection for both desktop (s-item) and modern/mobile (s-card) layouts
+        # Select items using both current eBay class standards
         items = soup.select('.s-item, .s-card')
         data_points = []
         
         for item in items:
-            # Updated selectors to match the HTML file provided
             title = item.select_one('.s-item__title, .s-card__title, [role="heading"]')
             price = item.select_one('.s-item__price, .s-card__price')
             link = item.select_one('.s-item__link, .s-card__link, a[href*="/itm/"]')
             
             if title and price and link:
                 price_text = price.get_text(strip=True).replace(',', '')
-                # Skip price ranges (e.g., "$10 to $20") to ensure data accuracy
+                # Filter out price ranges to keep data clean
                 if "to" not in price_text.lower() and "$" in price_text:
                     match = re.search(r'\d+(?:\.\d+)?', price_text)
                     if match:
@@ -89,7 +89,7 @@ def scrape_ebay_listings(search_query):
                             "Link": link['href'] if link.has_attr('href') else ""
                         })
         
-        # Filter out generic eBay ads and "Shop on eBay" placeholders
+        # Filter out "Shop on eBay" and promotional blocks
         return [d for d in data_points if "shop on" not in d['Title'].lower()][:15]
         
     except Exception as e:
@@ -124,14 +124,14 @@ with st.sidebar:
                 
             st.session_state.shipping_cost = final_ship 
             
-    st.metric("Est. Shipping", f"${st.session_state.shipping_cost:.2f}")
+    st.metric("Est. Shipping (AU)", f"${st.session_state.shipping_cost:.2f}")
 
 picture = st.camera_input("Scan Item")
 store_price = st.number_input("Store Price (AUD):", min_value=0.0, value=None, format="%.2f")
 
 if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True):
     if not picture:
-        st.warning("⚠️ Please click 'Take Photo' first.")
+        st.warning("⚠️ Please take a photo first.")
     elif store_price is None:
         st.warning("⚠️ Please enter the Store Price.")
     else:
@@ -140,7 +140,7 @@ if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True)
             st.session_state.search_query = query
             
         if query and query != "ITEM_NOT_RECOGNIZED":
-            with st.spinner(f"Fetching eBay data for: {query}..."):
+            with st.spinner(f"Searching eBay Australia for: {query}..."):
                 st.session_state.raw_data = scrape_ebay_listings(query)
         else:
             st.session_state.raw_data = None
@@ -148,7 +148,7 @@ if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True)
 
 if st.session_state.raw_data is not None:
     if len(st.session_state.raw_data) > 0: 
-        st.success(f"Market Analysis for: **{st.session_state.search_query}**")
+        st.success(f"Results for: **{st.session_state.search_query}** (Australia Only)")
         
         df = pd.DataFrame(st.session_state.raw_data)
         edited_df = st.data_editor(
@@ -167,12 +167,12 @@ if st.session_state.raw_data is not None:
         
         if not verified_points.empty:
             avg_val = verified_points["Price"].mean()
-            # 15% deduction for platform fees/overhead
+            # Calculation: (Avg Market * 0.85 fees) - Cost - Shipping
             profit = (avg_val * 0.85) - store_price - st.session_state.shipping_cost
             
             st.divider()
             c1, c2 = st.columns(2)
-            c1.metric("Avg Market Value", f"${avg_val:.2f}")
+            c1.metric("Avg Market (AU)", f"${avg_val:.2f}")
             c2.metric("Estimated Profit", f"${profit:.2f}", delta=f"{profit:.2f}")
     
             if st.button("💾 Save to History"):
@@ -187,9 +187,9 @@ if st.session_state.raw_data is not None:
                 st.session_state.raw_data = None
                 st.rerun()
         else:
-            st.warning("Please select at least one listing to calculate profit.")
+            st.warning("Select at least one listing.")
     else:
-        st.warning(f"No sold listings found for: **{st.session_state.search_query}**.")
+        st.warning(f"No local Australian sold listings found for: **{st.session_state.search_query}**.")
 
 st.divider()
 st.subheader("📜 Sourcing History")
@@ -211,4 +211,4 @@ if st.session_state.history:
         st.session_state.history = []
         st.rerun()
 else:
-    st.info("Your history is currently empty.")
+    st.info("Your history is empty.")
