@@ -42,13 +42,13 @@ def get_search_query_from_image(image_bytes):
         st.error(f"AI Vision Error: {e}")
         return None
 
-def scrape_ebay_listings(search_query, condition):
+def scrape_ebay_listings(search_query, condition_label):
     query_formatted = urllib.parse.quote_plus(search_query) 
     
-    # Map condition to eBay codes: New=1000, Used=3000
-    cond_code = "1000" if condition == "New" else "3000"
+    # Map condition to eBay codes: New=1000, Used/Pre-owned=3000
+    cond_code = "1000" if condition_label == "New" else "3000"
     
-    # URL includes: Sold, Completed, Australia Only, and specific Condition
+    # URL includes: Sold, Completed, Australia Only (LH_PrefLoc=1), and Condition
     sold_url = (
         f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}"
         f"&LH_Complete=1&LH_Sold=1&LH_PrefLoc=1&LH_ItemCondition={cond_code}"
@@ -133,8 +133,8 @@ col1, col2 = st.columns(2)
 with col1:
     store_price = st.number_input("Store Price (AUD):", min_value=0.0, value=None, format="%.2f")
 with col2:
-    # --- NEW: Condition Selector ---
-    item_condition = st.radio("Item Condition:", ["New", "Used"], horizontal=True)
+    # Updated labels to include Pre-owned
+    item_condition = st.radio("Item Condition:", ["New", "Used / Pre-owned"], horizontal=True)
 
 if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True):
     if not picture:
@@ -147,8 +147,7 @@ if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True)
             st.session_state.search_query = query
             
         if query and query != "ITEM_NOT_RECOGNIZED":
-            with st.spinner(f"Searching eBay AU ({item_condition}) for: {query}..."):
-                # Pass the condition to the scraper
+            with st.spinner(f"Searching eBay AU for {item_condition} {query}..."):
                 st.session_state.raw_data = scrape_ebay_listings(query, item_condition)
         else:
             st.session_state.raw_data = None
