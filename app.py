@@ -42,19 +42,23 @@ def get_search_query_from_image(image_bytes):
         st.error(f"AI Vision Error: {e}")
         return None
 
+# Change this in your app.py
 def scrape_ebay_listings(search_query):
     query_formatted = urllib.parse.quote_plus(search_query) 
-    sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1&LH_PrefLoc=0"
+    sold_url = f"https://www.ebay.com.au/sch/i.html?_nkw={query_formatted}&LH_Complete=1&LH_Sold=1"
     
     try:
         client = ZenRowsClient(ZENROWS_API_KEY)
+        
+        # Simplify these parameters to match your working test script
         params = {
             "premium_proxy": "true",
-            "proxy_country": "au", # Force AU proxy
+            "proxy_country": "au",
             "antibot": "true",
-            "js_render": "true",  
-            "wait": 5000 # 5 second wait for JS
+            # REMOVE js_render and wait
         }
+        
+        response = client.get(sold_url, params=params)
         
         response = client.get(sold_url, params=params)
         if response.status_code != 200:
