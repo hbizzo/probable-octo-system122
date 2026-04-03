@@ -58,8 +58,8 @@ def scrape_ebay_listings(search_query):
         params = {
             "premium_proxy": "true",
             "antibot": "true",
-            "js_render": "true"
-            "wait": 2000  # <--- Tells ZenRows to wait 2 seconds (2000ms) for items to load
+            "js_render": "true",  
+            "wait": 2000 
         }
         
         # Fetch data through ZenRows
