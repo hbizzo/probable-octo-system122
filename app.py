@@ -97,7 +97,7 @@ def scrape_ebay_listings(search_query):
         return []
         
 # --- 4. STREAMLIT UI ---
-st.title("📸 Arbitrage Scanner")
+st.title("ScanAnalytics")
 
 with st.sidebar:
     st.header("📦 Shipping (LiDAR)")
