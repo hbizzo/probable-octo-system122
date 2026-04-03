@@ -8,7 +8,7 @@ import pandas as pd
 from zenrows import ZenRowsClient
 
 # --- 1. PAGE SETUP ---
-st.set_page_config(page_title="Arbitrage Scanner", layout="centered")
+st.set_page_config(page_title="ScanAnalytics", layout="centered")
 
 # --- 2. CONFIGURATION & SESSION STATE ---
 try:
@@ -106,7 +106,7 @@ with st.sidebar:
     h_cm = st.number_input("Height (cm):", min_value=0.0, value=None)
     weight_kg = st.number_input("Weight (kg):", min_value=0.0, value=None)
     
-    if st.button("🧮 Calculate Shipping", use_container_width=True):
+    if st.button("Calculate Shipping", use_container_width=True):
         if None in [l_cm, w_cm, h_cm, weight_kg]:
             st.error("Please enter all measurements.")
         else:
@@ -129,7 +129,7 @@ with st.sidebar:
 picture = st.camera_input("Scan Item")
 store_price = st.number_input("Store Price (AUD):", min_value=0.0, value=None, format="%.2f")
 
-if st.button("🚀 GO - Analyze Item", type="primary", use_container_width=True):
+if st.button("Analyze Item", type="primary", use_container_width=True):
     if not picture:
         st.warning("⚠️ Please take a photo first.")
     elif store_price is None:
